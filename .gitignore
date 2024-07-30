@@ -1,0 +1,4 @@
+dist/
+build/
+task_manager.spec
+tasks_file.md
