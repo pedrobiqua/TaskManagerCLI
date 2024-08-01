@@ -3,3 +3,6 @@ build/
 env_task_manager/
 task_manager.spec
 tasks_file.md
+__pycache__/
+.vscode/
+.task_manager/
