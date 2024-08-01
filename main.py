@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import typer
+import configparser
 # import random
 # import string
 import os
@@ -10,6 +11,8 @@ from rich.console import Console
 # from rich.status import Status
 from rich.markdown import Markdown
 from typing import Type, Dict
+from importlib import resources
+from pathlib import Path
 
 # Configurações do Cli
 console = Console()
@@ -18,6 +21,7 @@ app = typer.Typer()
 # Constantes do sistema
 FILE_NAME = "tasks_file.md"
 NAME_LEN = 8
+CONFIG_MODULE = ".task_manager"
 
 def validate_params(number_line:int, number_task:int, lines):
     # Valida se a linha que está sendo alterada existe
@@ -155,6 +159,53 @@ class OptionsTaskManagerFactory:
 
         raise typer.BadParameter(f"A operação {opr} é inválida! escolha uma dessas: {list(OptionsTaskManagerFactory.options.keys())}")
 
+def validate_init_folder():
+    if not os.path.exists(CONFIG_MODULE):
+        console.print("Repositório não inicializado!", style="red bold")
+        return False
+    return True
+
+def validate_config_file():
+    config = configparser.ConfigParser()
+    resource_path = Path(CONFIG_MODULE) / "config.ini"
+    config.read(resource_path)
+
+    # Acessa valores
+    user_name = config['user']['name']
+    user_email = config['user']['email']
+    
+    # Da para melhorar essa lógica
+    if user_name == "No name":
+        console.print("Nome não configurado, por favor execute o comando de config, comando: ./task_manager.py config 'Nome' 'E-mail'")
+        return False
+    elif user_email == "no_email@no_email.com":
+        console.print("E-mail não configurado, por favor execute o comando de config, comando: ./task_manager.py config 'Nome' 'E-mail'")
+        return False
+    else:
+        return True
+
+
+def create_config_file(init_path_folder):
+    path_config = init_path_folder / 'config.ini'
+    config = configparser.ConfigParser()
+    # Adicionar as configurções aqui
+    config['user'] = {'name' : 'No name', 'email': 'no_email@no_email.com'}
+    
+
+    with open(path_config, 'w') as config_file:
+        config.write(config_file)
+
+    console.print("Arquivo config.ini criado com sucesso!")
+
+def create_init_folder():
+    init_path_folder = Path(".task_manager")
+    file_init = init_path_folder / '__init__.py'
+    # Cria a pasta e depois o arquivo
+    init_path_folder.mkdir()
+    file_init.touch()
+    console.print("Pasta criada!", style="green bold")
+    create_config_file(init_path_folder)
+
 def ensure_file_exists():
     """
     Verifica se um arquivo existe
@@ -162,10 +213,22 @@ def ensure_file_exists():
     # Cria o arquivo caso não exista
     file_name = FILE_NAME
     if not os.path.exists(file_name):
+        
+        # Obtem o nome do usuário e email
+        config = configparser.ConfigParser()
+        
+        resource_path = Path(CONFIG_MODULE) / "config.ini"
+        config.read(resource_path)
+
+        # Acessa valores
+        user_name = config['user']['name']
+        user_email = config['user']['email']
+
         with open(file_name, 'w') as file:
-            file.write("""
+            file.write(f"""
 # Tasks to do your work!
-`by: Pedro Bianchini de Quadros`
+`by: {user_name}`
+`E-mail: {user_email}`
 \u200B
 """)
         print(f"O arquivo contendo as tarefas foi criado em: {file_name}")
@@ -191,8 +254,10 @@ def add(name_task: str):
     """
     Adiciona uma nova tarefa a lista de tarefas
     """
-    ensure_file_exists()
-    run_option(opr="add", name_task=name_task)
+    # ensure_file_exists()
+    if validate_init_folder():
+        if validate_config_file():
+            run_option(opr="add", name_task=name_task)
 
 
 @app.command()
@@ -200,12 +265,13 @@ def edit(name_task:str, number_task:int):
     """
     Edita uma tarefa
     """
-    ensure_file_exists()
-
-    if number_task > 0:
-        run_option(opr="edt", name_task=name_task, number_task=number_task)
-    else:
-        console.print("Esse número é inválido!", style="bold red")
+    # ensure_file_exists()
+    if validate_init_folder():
+        if validate_config_file():
+            if number_task > 0:
+                run_option(opr="edt", name_task=name_task, number_task=number_task)
+            else:
+                console.print("Esse número é inválido!", style="bold red")
 
 
 @app.command()
@@ -213,11 +279,13 @@ def delete(number_task:int):
     """
     Deleta uma tarefa
     """
-    if number_task > 0:
-        ensure_file_exists()
-        run_option(opr="del", number_task=number_task)
-    else:
-        console.print("Esse número é inválido!", style="bold red")
+    if validate_init_folder():
+        if validate_config_file():
+            if number_task > 0:
+                # ensure_file_exists()
+                run_option(opr="del", number_task=number_task)
+            else:
+                console.print("Esse número é inválido!", style="bold red")
 
 
 @app.command()
@@ -225,8 +293,34 @@ def list():
     """
     Lista todas as tarefas
     """
+    # ensure_file_exists()
+    if validate_init_folder():
+        if validate_config_file():
+            run_option(opr="lst")
+
+
+@app.command()
+def config(name: str, email: str):
+    # Obtem o nome do usuário e email
+    config = configparser.ConfigParser()        
+    path_config = Path(CONFIG_MODULE) / "config.ini"
+    config['user'] = {'name' : name, 'email': email}
+    with open(path_config, 'w') as config_file:
+        config.write(config_file)
+
     ensure_file_exists()
-    run_option(opr="lst")
+
+@app.command()
+def init():
+    """
+    Inicializa o repositório 
+    """
+    # Cria a pasta onde será armazenado os arquivos do usuário
+    create_init_folder()
+
+    # Cria o arquivo que será utilizado para salvar as tarefas 
+    # ensure_file_exists()
+    
 
 
 # Executa os comandos
